@@ -1,3 +1,5 @@
+# %%
+
 import pandas as pd
 import yfinance as yf
 import requests
@@ -26,7 +28,7 @@ class PortfolioBacktester:
             try:
                 krx_list = pd.read_html(url, header=0, encoding='euc-kr')[0]
                 krx_list['종목코드'] = krx_list['종목코드'].astype(str).str.zfill(6)
-                krx_list.to_csv(file_path, index=False)
+                krx_list.to_csv(file_path, index=False, encoding='utf-8-sig')
             except Exception as e:
                 print(f"KRX 리스트 확보 실패: {e}")
                 return pd.DataFrame()
