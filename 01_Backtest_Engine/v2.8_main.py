@@ -64,9 +64,6 @@ class PortfolioBacktester:
         return drawdown.min(), drawdown
 
     def calculate_summary(self, df):
-        """
-        [추가] 포트폴리오 성과 지표 요약 출력
-        """
         days = (df.index[-1] - df.index[0]).days
         years = days / 365.25 if days > 0 else 1
         
@@ -74,14 +71,18 @@ class PortfolioBacktester:
         cagr = ((df['Total_TR'].iloc[-1] / df['Total_TR'].iloc[0]) ** (1/years) - 1) * 100
         mdd_val, _ = self.calculate_mdd(df['Total_TR'])
 
-        print("\n" + "═"*55)
-        print(f"   📊 [ v2.8 Portfolio Backtest Report ]")
-        print("-"*55)
-        print(f" • 테스트 기간   : {df.index[0].date()} ~ {df.index[-1].date()} ({days}일)")
-        print(f" • 누적 수익률(TR): {total_return_tr*100:>12.2f}%")
-        print(f" • 연평균 수익률(CAGR): {cagr:>10.2f}%")
-        print(f" • 최대 낙폭(MDD)  : {mdd_val*100:>12.2f}%")
-        print("═"*55 + "\n")
+        # 디자인: 사용자님의 취향인 ║와 ═를 활용한 닫힌 박스
+        # 팁: 아래 공백(Space) 개수는 터미널 폰트에 따라 1~2개 차이가 날 수 있습니다.
+        print("\n  " + "╔" + "═" * 52 + "╗")
+        print(f"  ║  {f'[ v2.8 Portfolio Backtest Report ]':^48}  ║")
+        print("  " + "╠" + "═" * 52 + "╣")
+        print(f"  ║  • 테스트 기간   : {df.index[0].date()} ~ {df.index[-1].date()}         ║")
+        print(f"  ║  • 누적 수익률(TR): {total_return_tr*100:>12.2f}%                  ║")
+        print(f"  ║  • 연평균 수익률(CAGR): {cagr:>10.2f}%                ║")
+        # MDD 컬러 적용 (컬러 코드는 길이에 영향을 주지 않으므로 기존 칸수 유지)
+        mdd_str = f"{mdd_val*100:>12.2f}%"
+        print(f"  ║  • 최대 낙폭(MDD)  : \033[31m{mdd_str}\033[0m                 ║")
+        print("  " + "╚" + "═" * 52 + "╝" + "\n")
 
     def add_stock(self, ticker, shares):
         new_stock = pd.DataFrame({'ticker': [ticker], 'shares': [shares]})
