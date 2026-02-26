@@ -1,4 +1,3 @@
-# %%
 
 import pandas as pd
 import yfinance as yf
@@ -90,35 +89,55 @@ class PortfolioBacktester:
         new_stock = pd.DataFrame({'ticker': [ticker], 'shares': [shares]})
         self.portfolio = pd.concat([self.portfolio, new_stock], ignore_index=True)
 
-    def run_backtest(self, start_date, end_date):
+    def run_backtest(self, start_date, end_date, total_investment=100_000_000): # 기본 1억 설정
+        # 1. 환율 데이터 먼저 가져오기 (절대 날리면 안 됨!)
         historical_ex = self.get_historical_exchange_rates(start_date, end_date)
         if historical_ex is None: return
 
+        # 2. 입력된 값(shares 컬럼에 저장된 값)을 '비중'으로 해석
+        total_input_value = self.portfolio['shares'].sum() 
         all_details = []
 
         for _, stock in self.portfolio.iterrows():
             ticker = stock['ticker']
-            shares = stock['shares']
+            # 입력값이 40, 40, 20이면 0.4, 0.4, 0.2로 변환
+            weight = stock['shares'] / total_input_value
+            allocated_krw = total_investment * weight
+            
             try:
-                stock_data = yf.Ticker(ticker).history(start=start_date, end=end_date)
+                stock_obj = yf.Ticker(ticker)
+                stock_data = stock_obj.history(start=start_date, end=end_date)
                 stock_data.index = stock_data.index.tz_localize(None)
                 
-                data = self.calculate_returns(stock_data, shares)
-                pr_val, tr_val = data['PR'], data['TR']
+                # [핵심] 첫날 가격(원화 환산 필요)으로 살 수 있는 주식 수 계산
+                first_price = stock_data['Close'].iloc[0]
+                
+                # 미국 주식이라면 첫날 환율을 적용해 원화 기준 구매 가능 수량 산출
+                if not ticker.endswith('.KS'):
+                    first_ex_rate = historical_ex.loc[stock_data.index[0]]
+                    # 원화예산 / (달러가격 * 환율) = 구매 수량
+                    shares_to_buy = allocated_krw / (first_price * first_ex_rate)
+                else:
+                    # 한국 주식은 그냥 원화예산 / 원화가격
+                    shares_to_buy = allocated_krw / first_price
 
+                # 이후 수익률 계산(calculate_returns)은 역산된 shares_to_buy로 진행
+                data = self.calculate_returns(stock_data, shares_to_buy)
+                
+                # (기존 환율 처리 로직 그대로 유지...)
+                pr_val, tr_val = data['PR'], data['TR']
                 if not ticker.endswith('.KS'):
                     combined = pd.DataFrame({'price': pr_val, 'tr': tr_val}).join(historical_ex.rename('ex_rate'), how='left')
                     combined['ex_rate'] = combined['ex_rate'].ffill().bfill()
                     pr_val = combined['price'] * combined['ex_rate']
                     tr_val = combined['tr'] * combined['ex_rate']
 
-                temp_details = pd.DataFrame({
-                    f'{ticker}_Price_KRW': pr_val, 
-                    f'{ticker}_TR_KRW': tr_val
-                })
-                all_details.append(temp_details)
+                all_details.append(pd.DataFrame({f'{ticker}_Price_KRW': pr_val, f'{ticker}_TR_KRW': tr_val}))
+                
             except Exception as e:
-                print(f"{ticker} 오류: {e}")
+                print(f"{ticker} 계산 오류: {e}")
+
+        # ... 이하 데이터 결합 및 시각화 로직 동일
 
         detailed_df = pd.concat(all_details, axis=1)
         
@@ -214,9 +233,9 @@ def testCase(end_date=None):
 
     bt = PortfolioBacktester()
     # 종목과 수량을 여기에 추가하세요
-    bt.add_stock('O', 100)      # 리얼티 인컴
-    bt.add_stock('AAPL', 10)   # 애플
-    bt.add_stock('005930.KS', 50) # 삼성전자
+    bt.add_stock('O', 3)      # 리얼티 인컴
+    bt.add_stock('AAPL', 3)   # 애플
+    bt.add_stock('005930.KS', 11) # 삼성전자
     
     bt.run_backtest('2023-01-01', end_date)
 
