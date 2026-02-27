@@ -151,15 +151,36 @@ else:
                         
                         # 5. 하단 성과 지표
                         st.markdown("---")
+                        
+                        # 계산을 위한 기초 변수
+                        days = (display_df.index[-1] - display_df.index[0]).days
+                        # 0일인 경우 에러 방지
+                        years = days / 365 if days > 0 else 1
+                        
                         m1, m2, m3 = st.columns(3)
                         
-                        my_ret = weighted_sum.iloc[-1] - 100
-                        sp_ret = norm_df['^GSPC'].iloc[-1] - 100 if '^GSPC' in norm_df.columns else 0
-                        ko_ret = norm_df['^KS11'].iloc[-1] - 100 if '^KS11' in norm_df.columns else 0
+                        # 누적 수익률 계산
+                        my_final_val = display_df['My Portfolio'].iloc[-1]
+                        my_ret = my_final_val - 100
                         
-                        m1.metric("내 포트폴리오", f"{my_ret:.2f}%")
-                        m2.metric("S&P 500", f"{sp_ret:.2f}%", f"{my_ret - sp_ret:.2f}%")
-                        m3.metric("KOSPI", f"{ko_ret:.2f}%", f"{my_ret - ko_ret:.2f}%")
+                        # CAGR 계산 (시작값이 100이므로 종료값/100)
+                        my_cagr = ((my_final_val / 100) ** (1/years) - 1) * 100
+                        
+                        sp_ret = display_df['S&P 500'].iloc[-1] - 100 if 'S&P 500' in display_df.columns else 0
+                        ko_ret = display_df['KOSPI'].iloc[-1] - 100 if 'KOSPI' in display_df.columns else 0
+                        
+                        # 지표 출력
+                        with m1:
+                            st.metric("내 포트폴리오 누적 수익률", f"{my_ret:.2f}%")
+                            st.caption(f"📅 연평균 수익률(CAGR): **{my_cagr:.2f}%**")
+                        
+                        with m2:
+                            st.metric("S&P 500 대비", f"{sp_ret:.2f}%", f"{my_ret - sp_ret:.2f}%")
+                            st.caption(f"S&P 500 누적 성과")
+                            
+                        with m3:
+                            st.metric("KOSPI 대비", f"{ko_ret:.2f}%", f"{my_ret - ko_ret:.2f}%")
+                            st.caption(f"KOSPI 누적 성과")
                     else:
                         st.warning("⚠️ '비중 설정기' 탭에서 비중을 먼저 설정해주세요!")
 
