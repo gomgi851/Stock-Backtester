@@ -1,42 +1,45 @@
 import pandas as pd
 import os
 import streamlit as st
+import requests
 
 @st.cache_data
 def get_krx_list():
-    """제공해주신 최적화 로직: 코스피(.KS)와 코스닥(.KQ) 통합 리스트 생성"""
     file_path = 'krx_list.csv'
     
-    # 기존 파일이 있으면 즉시 로드
     if os.path.exists(file_path):
         return pd.read_csv(file_path, dtype={'ticker': str})
     
     try:
+        # 핵심: 브라우저인 척 속이는 헤더 추가
+        headers = {
+            'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36'
+        }
         url = 'https://kind.krx.co.kr/corpgeneral/corpList.do'
         
-        # 1. 코스닥 및 코스피 데이터 읽기 (euc-kr 인코딩 적용)
-        kosdaq = pd.read_html(url + "?method=download&marketType=kosdaqMkt", encoding='euc-kr')[0]
-        kospi = pd.read_html(url + "?method=download&marketType=stockMkt", encoding='euc-kr')[0]
+        # 코스닥 데이터 가져오기
+        res_kosdaq = requests.get(url + "?method=download&marketType=kosdaqMkt", headers=headers)
+        kosdaq = pd.read_html(res_kosdaq.text)[0]
+        
+        # 코스피 데이터 가져오기
+        res_kospi = requests.get(url + "?method=download&marketType=stockMkt", headers=headers)
+        kospi = pd.read_html(res_kospi.text)[0]
 
-        # 2. 종목코드 6자리 맞추고 접미사 붙이기 (.KQ / .KS)
         kosdaq['ticker'] = kosdaq['종목코드'].astype(str).str.zfill(6) + '.KQ'
         kospi['ticker'] = kospi['종목코드'].astype(str).str.zfill(6) + '.KS'
 
-        # 3. 데이터 통합 및 정리
         df = pd.concat([kosdaq, kospi], ignore_index=True)
         df = df[['회사명', 'ticker']].copy()
         df.columns = ['name', 'ticker']
-        
-        # 4. Streamlit 검색용 display 컬럼 생성
         df['display'] = "🇰🇷 " + df['name'] + " (" + df['ticker'] + ")"
         
-        # 5. CSV 저장 (한글 깨짐 방지 utf-8-sig)
+        # 서버 환경에서도 다음에 안 불러오도록 저장
         df.to_csv(file_path, index=False, encoding='utf-8-sig')
-        
         return df
         
     except Exception as e:
-        st.error(f"한국 주식 리스트 로드 실패: {e}")
+        # 에러 발생 시 앱이 멈추지 않게 빈 데이터프레임이라도 반환
+        st.error(f"한국 주식 리스트 로드 실패 (403 방지 필요): {e}")
         return pd.DataFrame(columns=['name', 'ticker', 'display'])
 
 @st.cache_data
